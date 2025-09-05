@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		0AAA1111BBBB2222CCCC3333 /* ChannelCrypto.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AAA1111BBBB2222CCCC3331 /* ChannelCrypto.swift */; };
 		0AAA1111BBBB2222CCCC3334 /* PrivateChannelManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AAA1111BBBB2222CCCC3332 /* PrivateChannelManager.swift */; };
+		0AAA1111BBBB2222CCCC3342 /* BitTransferService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AAA1111BBBB2222CCCC3341 /* BitTransferService.swift */; };
 		047502802E53A0FC0083520F /* FragmentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0475027E2E53A0FC0083520F /* FragmentationTests.swift */; };
 		047502812E53A0FC0083520F /* FragmentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0475027E2E53A0FC0083520F /* FragmentationTests.swift */; };
 		047502872E5416250083520F /* Geohash.swift in Sources */ = {isa = PBXBuildFile; fileRef = 047502852E5416250083520F /* Geohash.swift */; };
@@ -200,6 +201,7 @@
 /* Begin PBXFileReference section */
 		0AAA1111BBBB2222CCCC3331 /* ChannelCrypto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChannelCrypto.swift; sourceTree = "<group>"; };
 		0AAA1111BBBB2222CCCC3332 /* PrivateChannelManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivateChannelManager.swift; sourceTree = "<group>"; };
+		0AAA1111BBBB2222CCCC3341 /* BitTransferService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BitTransferService.swift; sourceTree = "<group>"; };
 		03C57F452B55FD0FD8F51421 /* bitchatTests_macOS.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = bitchatTests_macOS.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		0475027E2E53A0FC0083520F /* FragmentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FragmentationTests.swift; sourceTree = "<group>"; };
 		047502852E5416250083520F /* Geohash.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Geohash.swift; sourceTree = "<group>"; };
@@ -532,6 +534,7 @@
 			children = (
 				0AAA1111BBBB2222CCCC3331 /* ChannelCrypto.swift */,
 				0AAA1111BBBB2222CCCC3332 /* PrivateChannelManager.swift */,
+				0AAA1111BBBB2222CCCC3341 /* BitTransferService.swift */,
 				048A4C272E5FCD6600162C4A /* GeohashBookmarksStore.swift */,
 				048A4BE62E5CCCC300162C4A /* TransportConfig.swift */,
 				AA77BB10CC22DD33EE44FF55 /* VerificationService.swift */,
@@ -756,6 +759,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				0AAA1111BBBB2222CCCC3342 /* BitTransferService.swift in Sources */,
 				0AAA1111BBBB2222CCCC3333 /* ChannelCrypto.swift in Sources */,
 				0AAA1111BBBB2222CCCC3334 /* PrivateChannelManager.swift in Sources */,
 				048A4BE72E5CCCC300162C4A /* TransportConfig.swift in Sources */,
