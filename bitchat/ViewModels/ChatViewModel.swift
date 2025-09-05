@@ -525,6 +525,8 @@ class ChatViewModel: ObservableObject, BitchatDelegate {
         
         // Start mesh service immediately
         meshService.startServices()
+        // Ensure stealth mode is enforced
+        meshService.setStealthMode(true)
         
         // Initialize Nostr services
         Task { @MainActor in
