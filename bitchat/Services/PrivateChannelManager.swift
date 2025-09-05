@@ -15,7 +15,7 @@ final class PrivateChannelManager: ObservableObject {
     @Published private(set) var joined: [String: ChannelCrypto.Derived] = [:] // normalizedName -> Derived
     @Published var activeChannel: String? = nil // normalized name (without '#')
 
-    private let storageKey = "bitchat.privateChannels.v1"
+    private let storageKey = "bitchat.privateChannels.v2"
 
     private init() {
         load()
@@ -56,7 +56,9 @@ final class PrivateChannelManager: ObservableObject {
         // Persist small map: name -> (key, cid)
         var dict: [String: String] = [:]
         for (name, d) in joined {
-            dict[name] = (d.key32 + d.channelID16).hexEncodedString()
+            var epochBE = d.epochLenSec.bigEndian
+            let epochBytes = withUnsafeBytes(of: &epochBE) { Data($0) }
+            dict[name] = (d.key32 + d.channelID16 + epochBytes).hexEncodedString()
         }
         if let data = try? JSONSerialization.data(withJSONObject: dict, options: []) {
             _ = KeychainManager.shared.saveIdentityKey(data, forKey: storageKey)
@@ -69,10 +71,12 @@ final class PrivateChannelManager: ObservableObject {
               let dict = obj as? [String: String] else { return }
         var out: [String: ChannelCrypto.Derived] = [:]
         for (name, hex) in dict {
-            if let raw = Data(hexString: hex), raw.count >= (32 + 16) {
+            if let raw = Data(hexString: hex), raw.count >= (32 + 16 + 8) {
                 let key = raw.prefix(32)
-                let cid = raw.suffix(16)
-                out[name] = ChannelCrypto.Derived(key32: key, channelID16: cid)
+                let cid = raw.dropFirst(32).prefix(16)
+                let epochData = raw.suffix(8)
+                let epoch = epochData.withUnsafeBytes { $0.load(as: UInt64.self) }.bigEndian
+                out[name] = ChannelCrypto.Derived(key32: key, channelID16: cid, epochLenSec: epoch)
             }
         }
         joined = out

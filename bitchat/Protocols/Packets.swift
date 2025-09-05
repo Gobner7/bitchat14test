@@ -138,6 +138,7 @@ struct PrivateMessagePacket {
 struct ChannelEncryptedPacket {
     // A stable channel identifier (first 16 bytes of HMAC-SHA256 over key material)
     let channelID: Data        // 16 bytes
+    let epoch: UInt64          // key epoch (seconds / epochLen)
     let nonce24: Data          // 24 bytes XChaCha nonce
     let ciphertext: Data       // variable
     let tag: Data              // 16 bytes auth tag
@@ -147,6 +148,7 @@ struct ChannelEncryptedPacket {
         case nonce24   = 0x02
         case ciphertext = 0x03
         case tag       = 0x04
+        case epoch     = 0x05    // 8 bytes
     }
 
     func encode() -> Data? {
@@ -157,6 +159,13 @@ struct ChannelEncryptedPacket {
         data.append(TLVType.channelID.rawValue)
         data.append(UInt8(channelID.count))
         data.append(channelID)
+
+        // epoch (8 bytes)
+        var epochBE = epoch.bigEndian
+        let epochBytes = withUnsafeBytes(of: &epochBE) { Data($0) }
+        data.append(TLVType.epoch.rawValue)
+        data.append(UInt8(epochBytes.count))
+        data.append(epochBytes)
 
         // nonce24
         data.append(TLVType.nonce24.rawValue)
@@ -180,6 +189,7 @@ struct ChannelEncryptedPacket {
     static func decode(from data: Data) -> ChannelEncryptedPacket? {
         var offset = 0
         var channelID: Data?
+        var epoch: UInt64?
         var nonce24: Data?
         var ciphertext: Data?
         var tag: Data?
@@ -194,14 +204,18 @@ struct ChannelEncryptedPacket {
 
             switch type {
             case .channelID: channelID = Data(value)
+            case .epoch:
+                if value.count == 8 {
+                    epoch = value.withUnsafeBytes { $0.load(as: UInt64.self) }.bigEndian
+                }
             case .nonce24: nonce24 = Data(value)
             case .ciphertext: ciphertext = Data(value)
             case .tag: tag = Data(value)
             }
         }
 
-        guard let cid = channelID, let n = nonce24, let c = ciphertext, let t = tag,
+        guard let cid = channelID, let e = epoch, let n = nonce24, let c = ciphertext, let t = tag,
               cid.count == 16, n.count == 24, t.count == 16 else { return nil }
-        return ChannelEncryptedPacket(channelID: cid, nonce24: n, ciphertext: c, tag: t)
+        return ChannelEncryptedPacket(channelID: cid, epoch: e, nonce24: n, ciphertext: c, tag: t)
     }
 }
