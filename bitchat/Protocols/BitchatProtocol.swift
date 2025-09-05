@@ -130,6 +130,9 @@ enum MessageType: UInt8 {
     case noiseHandshake = 0x10  // Handshake (init or response determined by payload)
     case noiseEncrypted = 0x11  // All encrypted payloads (messages, receipts, etc.)
     
+    // Channel encryption (broadcast, decryptable by members only)
+    case channelEncrypted = 0x12
+    
     // Fragmentation (simplified)
     case fragment = 0x20        // Single fragment type for large messages
     
@@ -140,6 +143,7 @@ enum MessageType: UInt8 {
         case .leave: return "leave"
         case .noiseHandshake: return "noiseHandshake"
         case .noiseEncrypted: return "noiseEncrypted"
+        case .channelEncrypted: return "channelEncrypted"
         case .fragment: return "fragment"
         }
     }
@@ -475,6 +479,7 @@ protocol BitchatDelegate: AnyObject {
     // Low-level events for better separation of concerns
     func didReceiveNoisePayload(from peerID: String, type: NoisePayloadType, payload: Data, timestamp: Date)
     func didReceivePublicMessage(from peerID: String, nickname: String, content: String, timestamp: Date)
+    func didReceiveChannelPayload(from peerID: String, payload: Data, timestamp: Date)
 }
 
 // Provide default implementation to make it effectively optional
@@ -492,6 +497,9 @@ extension BitchatDelegate {
     }
 
     func didReceivePublicMessage(from peerID: String, nickname: String, content: String, timestamp: Date) {
+        // Default empty implementation
+    }
+    func didReceiveChannelPayload(from peerID: String, payload: Data, timestamp: Date) {
         // Default empty implementation
     }
 }

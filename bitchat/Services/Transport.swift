@@ -38,12 +38,16 @@ protocol Transport: AnyObject {
     func getNoiseSessionState(for peerID: String) -> LazyHandshakeState
     func triggerHandshake(with peerID: String)
     func getNoiseService() -> NoiseEncryptionService
+    func setStealthMode(_ enabled: Bool)
 
     // Messaging
     func sendMessage(_ content: String, mentions: [String])
     func sendPrivateMessage(_ content: String, to peerID: String, recipientNickname: String, messageID: String)
     func sendReadReceipt(_ receipt: ReadReceipt, to peerID: String)
     func sendFavoriteNotification(to peerID: String, isFavorite: Bool)
+    // Channel-broadcast encrypted message
+    func sendChannelMessage(_ content: String, channel: ChannelCrypto.Derived)
+    func sendChannelPayload(_ payload: Data, channel: ChannelCrypto.Derived)
     func sendBroadcastAnnounce()
     func sendDeliveryAck(for messageID: String, to peerID: String)
 

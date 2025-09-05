@@ -45,6 +45,14 @@ class CommandProcessor {
         switch cmd {
         case "/m", "/msg":
             return handleMessage(args)
+        case "/j", "/join":
+            return handleJoin(args)
+        case "/leave":
+            return handleLeaveChannel(args)
+        case "/channels":
+            return handleListChannels()
+        case "/ch":
+            return handleSelectChannel(args)
         case "/w", "/who":
             return handleWho()
         case "/clear":
@@ -312,16 +320,58 @@ class CommandProcessor {
     private func handleHelp() -> CommandResult {
         let helpText = """
         commands:
-        /msg @name - start private chat
-        /who - list who's online
-        /clear - clear messages
-        /hug @name - send a hug
-        /slap @name - slap with a trout
-        /fav @name - add to favorites
-        /unfav @name - remove from favorites
-        /block @name - block
-        /unblock @name - unblock
+        /msg @name           - start private chat
+        /who                 - list who's online
+        /clear               - clear messages
+        /hug @name           - send a hug
+        /slap @name          - slap with a trout
+        /fav @name           - add to favorites
+        /unfav @name         - remove from favorites
+        /block @name         - block
+        /unblock @name       - unblock
+        /join #chan pass     - join private channel
+        /leave #chan         - leave private channel
+        /channels            - list joined channels
+        /ch #chan            - select active private channel
         """
         return .success(message: helpText)
+    }
+
+    // MARK: - Private Channels
+    private func handleJoin(_ args: String) -> CommandResult {
+        let parts = args.split(separator: " ", maxSplits: 1, omittingEmptySubsequences: true)
+        guard parts.count == 2 else { return .error(message: "usage: /join #channel password") }
+        let name = String(parts[0])
+        let pw = String(parts[1])
+        PrivateChannelManager.shared.join(channelName: name, password: pw)
+        PrivateChannelManager.shared.select(channelName: name)
+        chatViewModel?.addPublicSystemMessage("joined #\(ChannelCrypto.normalizeChannelName(name))")
+        return .handled
+    }
+
+    private func handleLeaveChannel(_ args: String) -> CommandResult {
+        let name = args.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty else { return .error(message: "usage: /leave #channel") }
+        PrivateChannelManager.shared.leave(channelName: name)
+        chatViewModel?.addPublicSystemMessage("left #\(ChannelCrypto.normalizeChannelName(name))")
+        return .handled
+    }
+
+    private func handleListChannels() -> CommandResult {
+        let list = PrivateChannelManager.shared.list()
+        if list.isEmpty { return .success(message: "no private channels joined") }
+        let active = PrivateChannelManager.shared.activeChannel
+        let rendered = list.map { ch in
+            if ch == active { return "#\(ch)*" } else { return "#\(ch)" }
+        }.joined(separator: ", ")
+        return .success(message: "channels: \(rendered)")
+    }
+
+    private func handleSelectChannel(_ args: String) -> CommandResult {
+        let name = args.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty else { return .error(message: "usage: /ch #channel") }
+        PrivateChannelManager.shared.select(channelName: name)
+        chatViewModel?.addPublicSystemMessage("selected #\(ChannelCrypto.normalizeChannelName(name))")
+        return .handled
     }
 }

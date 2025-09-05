@@ -824,7 +824,10 @@ struct ContentView: View {
                         // Map of aliases to primary commands
                         let aliases: [String: String] = [
                             "/join": "/j",
-                            "/msg": "/m"
+                            "/msg": "/m",
+                            "/channels": "/channels",
+                            "/ch": "/ch",
+                            "/leave": "/leave"
                         ]
                         
                         // Filter commands, but convert aliases to primary
@@ -864,6 +867,18 @@ struct ContentView: View {
             .padding(.trailing, 12)
             .accessibilityLabel("Send message")
             .accessibilityHint(messageText.isEmpty ? "Enter a message to send" : "Double tap to send")
+            #if os(iOS)
+            Button(action: {
+                // Simple picker via UIDocumentPicker in UIKit hosting; placeholder for now
+                viewModel.addPublicSystemMessage("file picker not wired in preview build")
+            }) {
+                Image(systemName: "paperclip")
+                    .font(.system(size: 18))
+                    .foregroundColor(textColor)
+            }
+            .buttonStyle(.plain)
+            .padding(.trailing, 8)
+            #endif
             }
             .padding(.vertical, 8)
             .background(backgroundColor.opacity(0.95))
@@ -1101,6 +1116,14 @@ struct ContentView: View {
             
             // Channel badge + dynamic spacing + people counter
             // Precompute header count and color outside the ViewBuilder expressions
+            if let active = PrivateChannelManager.shared.activeChannel {
+                Text("#\(active)")
+                    .font(.system(size: 12, weight: .bold, design: .monospaced))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.orange.opacity(0.2))
+                    .cornerRadius(4)
+            }
             let cc = channelPeopleCountAndColor()
             let headerCountColor: Color = cc.1
             let headerOtherPeersCount: Int = {

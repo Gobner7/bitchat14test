@@ -525,6 +525,8 @@ class ChatViewModel: ObservableObject, BitchatDelegate {
         
         // Start mesh service immediately
         meshService.startServices()
+        // Ensure stealth mode is enforced
+        meshService.setStealthMode(true)
         
         // Initialize Nostr services
         Task { @MainActor in
@@ -1300,6 +1302,26 @@ class ChatViewModel: ObservableObject, BitchatDelegate {
             } else {
             }
         } else {
+            // If a private channel is active, route via channel encryption over mesh
+            if let channelKey = PrivateChannelManager.shared.keyForActive() {
+                // Add a local echo with channel tag
+                let message = BitchatMessage(
+                    sender: nickname,
+                    content: trimmed,
+                    timestamp: Date(),
+                    isRelay: false,
+                    originalSender: nil,
+                    isPrivate: false,
+                    recipientNickname: nil,
+                    senderPeerID: meshService.myPeerID,
+                    mentions: nil
+                )
+                messages.append(message)
+                meshService.sendChannelMessage(trimmed, channel: channelKey)
+                trimMessagesIfNeeded()
+                objectWillChange.send()
+                return
+            }
             // Parse mentions from the content (use original content for user intent)
             let mentions = parseMentions(from: content)
             
@@ -4444,6 +4466,67 @@ class ChatViewModel: ObservableObject, BitchatDelegate {
                 }
             }
         }
+    }
+
+    // Channel-encrypted payloads (includes BitTransfer frames or text messages)
+    func didReceiveChannelPayload(from peerID: String, payload: Data, timestamp: Date) {
+        Task { @MainActor in
+            if let m = BitTransferManifest.decode(payload) {
+                handleIncomingManifest(m, from: peerID, at: timestamp)
+                return
+            }
+            if let c = BitTransferChunk.decode(payload) {
+                handleIncomingChunk(c, from: peerID, at: timestamp)
+                return
+            }
+            if let a = BitTransferAck.decode(payload) {
+                handleIncomingAck(a, from: peerID, at: timestamp)
+                return
+            }
+            if let x = BitTransferCancel.decode(payload) {
+                handleIncomingCancel(x, from: peerID, at: timestamp)
+                return
+            }
+            if let text = String(data: payload, encoding: .utf8) {
+                let msg = BitchatMessage(
+                    id: UUID().uuidString,
+                    sender: resolveNickname(for: peerID),
+                    content: text.trimmingCharacters(in: .whitespacesAndNewlines),
+                    timestamp: timestamp,
+                    isRelay: false,
+                    originalSender: nil,
+                    isPrivate: false,
+                    recipientNickname: nil,
+                    senderPeerID: peerID,
+                    mentions: nil
+                )
+                handlePublicMessage(msg)
+            }
+        }
+    }
+
+    // MARK: - BitTransfer handlers (stubs; completed in ft-ios-impl)
+    private func handleIncomingManifest(_ m: BitTransferManifest, from peerID: String, at ts: Date) {
+        BitTransferService.shared.handleManifest(m)
+        addPublicSystemMessage("incoming file: \(m.fileName) (\(m.fileSize) bytes)")
+    }
+    private func handleIncomingChunk(_ c: BitTransferChunk, from peerID: String, at ts: Date) {
+        if let ack = BitTransferService.shared.handleChunk(c) {
+            if let chKey = PrivateChannelManager.shared.keyForActive(), let encoded = ack.encode() {
+                meshService.sendChannelPayload(encoded, channel: chKey)
+            }
+            if let data = BitTransferService.shared.assembleIfComplete(c.fileID),
+               let m = BitTransferService.shared.manifest(for: c.fileID) {
+                addPublicSystemMessage("received file: \(m.fileName)")
+                // TODO: publish to UI as attachment
+            }
+        }
+    }
+    private func handleIncomingAck(_ a: BitTransferAck, from peerID: String, at ts: Date) {
+        BitTransferService.shared.handleAck(a)
+    }
+    private func handleIncomingCancel(_ x: BitTransferCancel, from peerID: String, at ts: Date) {
+        addPublicSystemMessage("transfer cancelled")
     }
 
     func didReceivePublicMessage(from peerID: String, nickname: String, content: String, timestamp: Date) {
