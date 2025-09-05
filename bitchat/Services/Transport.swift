@@ -44,6 +44,8 @@ protocol Transport: AnyObject {
     func sendPrivateMessage(_ content: String, to peerID: String, recipientNickname: String, messageID: String)
     func sendReadReceipt(_ receipt: ReadReceipt, to peerID: String)
     func sendFavoriteNotification(to peerID: String, isFavorite: Bool)
+    // Channel-broadcast encrypted message
+    func sendChannelMessage(_ content: String, channel: ChannelCrypto.Derived)
     func sendBroadcastAnnounce()
     func sendDeliveryAck(for messageID: String, to peerID: String)
 

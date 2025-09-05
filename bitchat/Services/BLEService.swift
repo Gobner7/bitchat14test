@@ -976,7 +976,7 @@ final class BLEService: NSObject {
     // MARK: - Broadcast helpers (single responsibility)
     private func padPolicy(for type: UInt8) -> Bool {
         switch MessageType(rawValue: type) {
-        case .noiseEncrypted, .noiseHandshake:
+        case .noiseEncrypted, .noiseHandshake, .channelEncrypted:
             return true
         default:
             return false
@@ -1335,8 +1335,8 @@ final class BLEService: NSObject {
         
         // Only log non-announce packets to reduce noise
         if packet.type != MessageType.announce.rawValue {
-            // Log packet details for debugging
-            SecureLogger.log("📦 Handling packet type \(packet.type) from \(senderID), messageID: \(messageID)", 
+            // Log minimal metadata only
+            SecureLogger.log("📦 Handling packet type \(packet.type) from \(senderID) ttl=\(packet.ttl)", 
                             category: SecureLogger.session, level: .debug)
         }
         
@@ -1392,6 +1392,9 @@ final class BLEService: NSObject {
             
         case .noiseEncrypted:
             handleNoiseEncrypted(packet, from: senderID)
+            
+        case .channelEncrypted:
+            handleChannelEncrypted(packet, from: senderID)
             
         case .fragment:
             handleFragment(packet, from: senderID)
@@ -1671,7 +1674,8 @@ final class BLEService: NSObject {
         }
 
         let pathTag = hasDirectLink ? "direct" : "mesh"
-        SecureLogger.log("💬 [\(senderNickname)] TTL:\(packet.ttl) (\(pathTag)): \(String(content.prefix(50)))\(content.count > 50 ? "..." : "")", category: SecureLogger.session, level: .debug)
+        // Avoid logging full plaintext content for privacy; log length only
+        SecureLogger.log("💬 [\(senderNickname)] TTL:\(packet.ttl) (\(pathTag)) len=\(content.count)", category: SecureLogger.session, level: .debug)
 
         let ts = Date(timeIntervalSince1970: Double(packet.timestamp) / 1000)
         notifyUI { [weak self] in
@@ -1779,6 +1783,37 @@ final class BLEService: NSObject {
             SecureLogger.log("❌ Failed to decrypt message from \(peerID): \(error)", 
                             category: SecureLogger.noise, level: .error)
         }
+    }
+
+    private func handleChannelEncrypted(_ packet: BitchatPacket, from peerID: String) {
+        // Attempt to decrypt using any joined channel keys
+        guard let env = ChannelEncryptedPacket.decode(from: packet.payload) else { return }
+        // Prepare AAD: senderID (bind to sender) — same AAD used during seal
+        let aad = packet.senderID
+        // Try each candidate channel we have
+        let joined = PrivateChannelManager.shared.joined
+        for (_, derived) in joined {
+            do {
+                if let plaintext = try ChannelCrypto.open(packet: env, candidate: derived, aad: aad) {
+                    // Decode as UTF-8; drop if not valid text
+                    guard let content = String(data: plaintext, encoding: .utf8) else { return }
+                    let ts = Date(timeIntervalSince1970: Double(packet.timestamp) / 1000)
+                    let senderNickname: String = {
+                        if let info = peers[peerID] { return info.nickname }
+                        // Fallback nickname resolution via social identity
+                        return "anon" + String(peerID.prefix(4))
+                    }()
+                    notifyUI { [weak self] in
+                        self?.delegate?.didReceivePublicMessage(from: peerID, nickname: senderNickname, content: content, timestamp: ts)
+                    }
+                    return
+                }
+            } catch {
+                // Try next key
+                continue
+            }
+        }
+        // Not for us; ignore silently
     }
     
     private func handleLeave(_ packet: BitchatPacket, from peerID: String) {
@@ -2234,6 +2269,35 @@ final class BLEService: NSObject {
             threshold = max(threshold, TransportConfig.bleRSSIHighTimeoutThreshold)
         }
         dynamicRSSIThreshold = threshold
+    }
+}
+
+extension BLEService: Transport {
+    func sendChannelMessage(_ content: String, channel: ChannelCrypto.Derived) {
+        // Build AAD as senderID to bind records, plus channelID in ChannelCrypto
+        let aad = Data(hexString: myPeerID) ?? Data()
+        guard let plaintext = content.data(using: .utf8) else { return }
+        do {
+            let sealed = try ChannelCrypto.seal(message: plaintext, channelKey: channel, aad: aad)
+            guard let env = sealed.encode() else { return }
+            let packet = BitchatPacket(
+                type: MessageType.channelEncrypted.rawValue,
+                senderID: Data(hexString: myPeerID) ?? Data(),
+                recipientID: nil,
+                timestamp: UInt64(Date().timeIntervalSince1970 * 1000),
+                payload: env,
+                signature: nil,
+                ttl: messageTTL
+            )
+            // Broadcast on mesh
+            if DispatchQueue.getSpecific(key: messageQueueKey) != nil {
+                broadcastPacket(packet)
+            } else {
+                messageQueue.async { [weak self] in self?.broadcastPacket(packet) }
+            }
+        } catch {
+            SecureLogger.log("❌ Failed to send channel message: \(error)", category: SecureLogger.security, level: .error)
+        }
     }
 }
 

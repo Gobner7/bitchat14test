@@ -1300,6 +1300,26 @@ class ChatViewModel: ObservableObject, BitchatDelegate {
             } else {
             }
         } else {
+            // If a private channel is active, route via channel encryption over mesh
+            if let channelKey = PrivateChannelManager.shared.keyForActive() {
+                // Add a local echo with channel tag
+                let message = BitchatMessage(
+                    sender: nickname,
+                    content: trimmed,
+                    timestamp: Date(),
+                    isRelay: false,
+                    originalSender: nil,
+                    isPrivate: false,
+                    recipientNickname: nil,
+                    senderPeerID: meshService.myPeerID,
+                    mentions: nil
+                )
+                messages.append(message)
+                meshService.sendChannelMessage(trimmed, channel: channelKey)
+                trimMessagesIfNeeded()
+                objectWillChange.send()
+                return
+            }
             // Parse mentions from the content (use original content for user intent)
             let mentions = parseMentions(from: content)
             

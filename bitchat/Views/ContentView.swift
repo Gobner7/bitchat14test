@@ -824,7 +824,10 @@ struct ContentView: View {
                         // Map of aliases to primary commands
                         let aliases: [String: String] = [
                             "/join": "/j",
-                            "/msg": "/m"
+                            "/msg": "/m",
+                            "/channels": "/channels",
+                            "/ch": "/ch",
+                            "/leave": "/leave"
                         ]
                         
                         // Filter commands, but convert aliases to primary
@@ -1101,6 +1104,14 @@ struct ContentView: View {
             
             // Channel badge + dynamic spacing + people counter
             // Precompute header count and color outside the ViewBuilder expressions
+            if let active = PrivateChannelManager.shared.activeChannel {
+                Text("#\(active)")
+                    .font(.system(size: 12, weight: .bold, design: .monospaced))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.orange.opacity(0.2))
+                    .cornerRadius(4)
+            }
             let cc = channelPeopleCountAndColor()
             let headerCountColor: Color = cc.1
             let headerOtherPeersCount: Int = {
