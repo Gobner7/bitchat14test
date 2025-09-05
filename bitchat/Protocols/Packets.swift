@@ -132,3 +132,76 @@ struct PrivateMessagePacket {
         return PrivateMessagePacket(messageID: messageID, content: content)
     }
 }
+
+// MARK: - Private Channel Encrypted Packet (TLV envelope)
+
+struct ChannelEncryptedPacket {
+    // A stable channel identifier (first 16 bytes of HMAC-SHA256 over key material)
+    let channelID: Data        // 16 bytes
+    let nonce24: Data          // 24 bytes XChaCha nonce
+    let ciphertext: Data       // variable
+    let tag: Data              // 16 bytes auth tag
+
+    private enum TLVType: UInt8 {
+        case channelID = 0x01
+        case nonce24   = 0x02
+        case ciphertext = 0x03
+        case tag       = 0x04
+    }
+
+    func encode() -> Data? {
+        guard channelID.count == 16, nonce24.count == 24, tag.count == 16 else { return nil }
+        var data = Data()
+
+        // channelID
+        data.append(TLVType.channelID.rawValue)
+        data.append(UInt8(channelID.count))
+        data.append(channelID)
+
+        // nonce24
+        data.append(TLVType.nonce24.rawValue)
+        data.append(UInt8(nonce24.count))
+        data.append(nonce24)
+
+        // ciphertext (length must fit in one byte for TLV; large payloads are handled by fragmentation above this layer)
+        guard ciphertext.count <= 255 else { return nil }
+        data.append(TLVType.ciphertext.rawValue)
+        data.append(UInt8(ciphertext.count))
+        data.append(ciphertext)
+
+        // tag
+        data.append(TLVType.tag.rawValue)
+        data.append(UInt8(tag.count))
+        data.append(tag)
+
+        return data
+    }
+
+    static func decode(from data: Data) -> ChannelEncryptedPacket? {
+        var offset = 0
+        var channelID: Data?
+        var nonce24: Data?
+        var ciphertext: Data?
+        var tag: Data?
+
+        while offset + 2 <= data.count {
+            guard let type = TLVType(rawValue: data[offset]) else { return nil }
+            offset += 1
+            let length = Int(data[offset]); offset += 1
+            guard offset + length <= data.count else { return nil }
+            let value = data[offset..<offset+length]
+            offset += length
+
+            switch type {
+            case .channelID: channelID = Data(value)
+            case .nonce24: nonce24 = Data(value)
+            case .ciphertext: ciphertext = Data(value)
+            case .tag: tag = Data(value)
+            }
+        }
+
+        guard let cid = channelID, let n = nonce24, let c = ciphertext, let t = tag,
+              cid.count == 16, n.count == 24, t.count == 16 else { return nil }
+        return ChannelEncryptedPacket(channelID: cid, nonce24: n, ciphertext: c, tag: t)
+    }
+}

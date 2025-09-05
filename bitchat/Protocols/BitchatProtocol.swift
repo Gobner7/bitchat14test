@@ -130,6 +130,9 @@ enum MessageType: UInt8 {
     case noiseHandshake = 0x10  // Handshake (init or response determined by payload)
     case noiseEncrypted = 0x11  // All encrypted payloads (messages, receipts, etc.)
     
+    // Channel encryption (broadcast, decryptable by members only)
+    case channelEncrypted = 0x12
+    
     // Fragmentation (simplified)
     case fragment = 0x20        // Single fragment type for large messages
     
@@ -140,6 +143,7 @@ enum MessageType: UInt8 {
         case .leave: return "leave"
         case .noiseHandshake: return "noiseHandshake"
         case .noiseEncrypted: return "noiseEncrypted"
+        case .channelEncrypted: return "channelEncrypted"
         case .fragment: return "fragment"
         }
     }
