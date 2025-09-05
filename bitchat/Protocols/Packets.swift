@@ -219,3 +219,193 @@ struct ChannelEncryptedPacket {
         return ChannelEncryptedPacket(channelID: cid, epoch: e, nonce24: n, ciphertext: c, tag: t)
     }
 }
+
+// MARK: - BitTransfer (channel-encrypted file transfer) TLVs
+
+enum BitTransferType: UInt8 {
+    case manifest = 0x10
+    case chunk    = 0x11
+    case ack      = 0x12
+    case cancel   = 0x13
+}
+
+struct BitTransferManifest {
+    let fileID: Data          // 16 bytes random ID
+    let fileName: String
+    let mimeType: String
+    let fileSize: UInt64
+    let totalChunks: UInt32
+    let fileHash: Data        // 32 bytes SHA-256
+
+    private enum TLVType: UInt8 {
+        case fileID      = 0x01
+        case fileName    = 0x02
+        case mimeType    = 0x03
+        case fileSize    = 0x04
+        case totalChunks = 0x05
+        case fileHash    = 0x06
+    }
+
+    func encode() -> Data? {
+        guard fileID.count == 16, fileHash.count == 32 else { return nil }
+        var data = Data([BitTransferType.manifest.rawValue])
+        data.append(TLVType.fileID.rawValue);   data.append(UInt8(fileID.count));   data.append(fileID)
+        guard let nameData = fileName.data(using: .utf8), nameData.count <= 255 else { return nil }
+        data.append(TLVType.fileName.rawValue); data.append(UInt8(nameData.count)); data.append(nameData)
+        guard let mimeData = mimeType.data(using: .utf8), mimeData.count <= 255 else { return nil }
+        data.append(TLVType.mimeType.rawValue); data.append(UInt8(mimeData.count)); data.append(mimeData)
+        var sizeBE = fileSize.bigEndian
+        let sizeBytes = withUnsafeBytes(of: &sizeBE) { Data($0) }
+        data.append(TLVType.fileSize.rawValue); data.append(UInt8(sizeBytes.count)); data.append(sizeBytes)
+        var chunksBE = totalChunks.bigEndian
+        let chunksBytes = withUnsafeBytes(of: &chunksBE) { Data($0) }
+        data.append(TLVType.totalChunks.rawValue); data.append(UInt8(chunksBytes.count)); data.append(chunksBytes)
+        data.append(TLVType.fileHash.rawValue); data.append(UInt8(fileHash.count)); data.append(fileHash)
+        return data
+    }
+
+    static func decode(_ data: Data) -> BitTransferManifest? {
+        guard data.first == BitTransferType.manifest.rawValue else { return nil }
+        var offset = 1
+        var fileID: Data?
+        var fileName: String?
+        var mimeType: String?
+        var fileSize: UInt64?
+        var totalChunks: UInt32?
+        var fileHash: Data?
+        while offset + 2 <= data.count {
+            guard let t = TLVType(rawValue: data[offset]) else { return nil }
+            offset += 1
+            let len = Int(data[offset]); offset += 1
+            guard offset + len <= data.count else { return nil }
+            let value = data[offset..<offset+len]; offset += len
+            switch t {
+            case .fileID: fileID = Data(value)
+            case .fileName: fileName = String(data: value, encoding: .utf8)
+            case .mimeType: mimeType = String(data: value, encoding: .utf8)
+            case .fileSize:
+                if value.count == 8 { fileSize = value.withUnsafeBytes { $0.load(as: UInt64.self) }.bigEndian }
+            case .totalChunks:
+                if value.count == 4 { totalChunks = value.withUnsafeBytes { $0.load(as: UInt32.self) }.bigEndian }
+            case .fileHash: fileHash = Data(value)
+            }
+        }
+        guard let fid = fileID, let name = fileName, let mime = mimeType, let size = fileSize, let chunks = totalChunks, let hash = fileHash,
+              fid.count == 16, hash.count == 32 else { return nil }
+        return BitTransferManifest(fileID: fid, fileName: name, mimeType: mime, fileSize: size, totalChunks: chunks, fileHash: hash)
+    }
+}
+
+struct BitTransferChunk {
+    let fileID: Data         // 16 bytes
+    let index: UInt32
+    let totalChunks: UInt32
+    let chunkHash: Data      // 32 bytes SHA-256
+    let payload: Data        // <= 255 bytes (fits TLV for now)
+
+    private enum TLVType: UInt8 {
+        case fileID      = 0x01
+        case index       = 0x02
+        case totalChunks = 0x03
+        case chunkHash   = 0x04
+        case payload     = 0x05
+    }
+
+    func encode() -> Data? {
+        guard fileID.count == 16, chunkHash.count == 32, payload.count <= 255 else { return nil }
+        var data = Data([BitTransferType.chunk.rawValue])
+        data.append(TLVType.fileID.rawValue); data.append(UInt8(fileID.count)); data.append(fileID)
+        var idxBE = index.bigEndian; let idxBytes = withUnsafeBytes(of: &idxBE) { Data($0) }
+        data.append(TLVType.index.rawValue); data.append(UInt8(idxBytes.count)); data.append(idxBytes)
+        var totBE = totalChunks.bigEndian; let totBytes = withUnsafeBytes(of: &totBE) { Data($0) }
+        data.append(TLVType.totalChunks.rawValue); data.append(UInt8(totBytes.count)); data.append(totBytes)
+        data.append(TLVType.chunkHash.rawValue); data.append(UInt8(chunkHash.count)); data.append(chunkHash)
+        data.append(TLVType.payload.rawValue); data.append(UInt8(payload.count)); data.append(payload)
+        return data
+    }
+
+    static func decode(_ data: Data) -> BitTransferChunk? {
+        guard data.first == BitTransferType.chunk.rawValue else { return nil }
+        var offset = 1
+        var fileID: Data?
+        var index: UInt32?
+        var totalChunks: UInt32?
+        var chunkHash: Data?
+        var payload: Data?
+        while offset + 2 <= data.count {
+            guard let t = TLVType(rawValue: data[offset]) else { return nil }
+            offset += 1
+            let len = Int(data[offset]); offset += 1
+            guard offset + len <= data.count else { return nil }
+            let value = data[offset..<offset+len]; offset += len
+            switch t {
+            case .fileID: fileID = Data(value)
+            case .index: if value.count == 4 { index = value.withUnsafeBytes { $0.load(as: UInt32.self) }.bigEndian }
+            case .totalChunks: if value.count == 4 { totalChunks = value.withUnsafeBytes { $0.load(as: UInt32.self) }.bigEndian }
+            case .chunkHash: chunkHash = Data(value)
+            case .payload: payload = Data(value)
+            }
+        }
+        guard let fid = fileID, let i = index, let t = totalChunks, let h = chunkHash, let p = payload,
+              fid.count == 16, h.count == 32 else { return nil }
+        return BitTransferChunk(fileID: fid, index: i, totalChunks: t, chunkHash: h, payload: p)
+    }
+}
+
+struct BitTransferAck {
+    let fileID: Data       // 16 bytes
+    let ackedUpTo: UInt32  // highest contiguous chunk index received
+
+    private enum TLVType: UInt8 { case fileID = 0x01; case ackedUpTo = 0x02 }
+
+    func encode() -> Data? {
+        guard fileID.count == 16 else { return nil }
+        var data = Data([BitTransferType.ack.rawValue])
+        data.append(TLVType.fileID.rawValue); data.append(UInt8(fileID.count)); data.append(fileID)
+        var aBE = ackedUpTo.bigEndian; let aBytes = withUnsafeBytes(of: &aBE) { Data($0) }
+        data.append(TLVType.ackedUpTo.rawValue); data.append(UInt8(aBytes.count)); data.append(aBytes)
+        return data
+    }
+
+    static func decode(_ data: Data) -> BitTransferAck? {
+        guard data.first == BitTransferType.ack.rawValue else { return nil }
+        var offset = 1
+        var fileID: Data?
+        var ack: UInt32?
+        while offset + 2 <= data.count {
+            guard let t = TLVType(rawValue: data[offset]) else { return nil }
+            offset += 1
+            let len = Int(data[offset]); offset += 1
+            guard offset + len <= data.count else { return nil }
+            let value = data[offset..<offset+len]; offset += len
+            switch t {
+            case .fileID: fileID = Data(value)
+            case .ackedUpTo: if value.count == 4 { ack = value.withUnsafeBytes { $0.load(as: UInt32.self) }.bigEndian }
+            }
+        }
+        guard let fid = fileID, let a = ack, fid.count == 16 else { return nil }
+        return BitTransferAck(fileID: fid, ackedUpTo: a)
+    }
+}
+
+struct BitTransferCancel {
+    let fileID: Data // 16 bytes
+    private enum TLVType: UInt8 { case fileID = 0x01 }
+    func encode() -> Data? {
+        guard fileID.count == 16 else { return nil }
+        var data = Data([BitTransferType.cancel.rawValue])
+        data.append(TLVType.fileID.rawValue); data.append(UInt8(fileID.count)); data.append(fileID)
+        return data
+    }
+    static func decode(_ data: Data) -> BitTransferCancel? {
+        guard data.first == BitTransferType.cancel.rawValue else { return nil }
+        var offset = 1
+        guard offset + 2 <= data.count else { return nil }
+        guard let t = TLVType(rawValue: data[offset]) else { return nil }
+        offset += 1
+        let len = Int(data[offset]); offset += 1
+        guard t == .fileID, len == 16, offset + len <= data.count else { return nil }
+        let fid = Data(data[offset..<offset+len])
+        return BitTransferCancel(fileID: fid)
+    }
+}
