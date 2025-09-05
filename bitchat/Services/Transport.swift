@@ -38,6 +38,7 @@ protocol Transport: AnyObject {
     func getNoiseSessionState(for peerID: String) -> LazyHandshakeState
     func triggerHandshake(with peerID: String)
     func getNoiseService() -> NoiseEncryptionService
+    func setStealthMode(_ enabled: Bool)
 
     // Messaging
     func sendMessage(_ content: String, mentions: [String])

@@ -70,6 +70,8 @@ final class BLEService: NSObject {
     
     // Simple announce throttling
     private var lastAnnounceSent = Date.distantPast
+    // Stealth mode: suppresses or anonymizes announces and disables plaintext public messages
+    private var stealthMode: Bool = true
     private let announceMinInterval: TimeInterval = TransportConfig.bleAnnounceMinInterval
     
     // Application state tracking (thread-safe)
@@ -470,9 +472,10 @@ final class BLEService: NSObject {
         }
         
         // Send initial announce after services are ready
-        // Use longer delay to avoid conflicts with other announces
-        messageQueue.asyncAfter(deadline: .now() + TransportConfig.bleInitialAnnounceDelaySeconds) { [weak self] in
-            self?.sendAnnounce(forceSend: true)
+        if !stealthMode {
+            messageQueue.asyncAfter(deadline: .now() + TransportConfig.bleInitialAnnounceDelaySeconds) { [weak self] in
+                self?.sendAnnounce(forceSend: true)
+            }
         }
     }
 
@@ -757,6 +760,10 @@ final class BLEService: NSObject {
                 self.sendPrivateMessage(content, to: recipientID, messageID: finalMessageID)
             } else {
                 // Public broadcast
+                if self.stealthMode {
+                    SecureLogger.log("🚫 Stealth: dropping plaintext public broadcast", category: SecureLogger.security, level: .info)
+                    return
+                }
                 // Create packet with explicit fields so we can sign it
                 let basePacket = BitchatPacket(
                     type: MessageType.message.rawValue,
@@ -767,16 +774,12 @@ final class BLEService: NSObject {
                     signature: nil,
                     ttl: self.messageTTL
                 )
-                guard let signedPacket = self.noiseService.signPacket(basePacket) else {
-                    SecureLogger.log("❌ Failed to sign public message", category: SecureLogger.security, level: .error)
-                    return
-                }
                 // Pre-mark our own broadcast as processed to avoid handling relayed self copy
-                let senderHex = signedPacket.senderID.hexEncodedString()
-                let dedupID = "\(senderHex)-\(signedPacket.timestamp)-\(signedPacket.type)"
+                let senderHex = basePacket.senderID.hexEncodedString()
+                let dedupID = "\(senderHex)-\(basePacket.timestamp)-\(basePacket.type)"
                 self.messageDeduplicator.markProcessed(dedupID)
                 // Call synchronously since we're already on background queue
-                self.broadcastPacket(signedPacket)
+                self.broadcastPacket(basePacket)
             }
         }
     }
@@ -974,14 +977,7 @@ final class BLEService: NSObject {
     }
 
     // MARK: - Broadcast helpers (single responsibility)
-    private func padPolicy(for type: UInt8) -> Bool {
-        switch MessageType(rawValue: type) {
-        case .noiseEncrypted, .noiseHandshake, .channelEncrypted:
-            return true
-        default:
-            return false
-        }
-    }
+    private func padPolicy(for type: UInt8) -> Bool { return true }
 
     private func sendEncrypted(_ packet: BitchatPacket, data: Data, pad: Bool) {
         guard let recipientID = packet.recipientID else { return }
@@ -1847,6 +1843,7 @@ final class BLEService: NSObject {
     }
     
     private func sendAnnounce(forceSend: Bool = false) {
+        guard !stealthMode else { return }
         // Throttle announces to prevent flooding
         let now = Date()
         let timeSinceLastAnnounce = now.timeIntervalSince(lastAnnounceSent)
@@ -2297,6 +2294,12 @@ extension BLEService: Transport {
             }
         } catch {
             SecureLogger.log("❌ Failed to send channel message: \(error)", category: SecureLogger.security, level: .error)
+        }
+    }
+
+    func setStealthMode(_ enabled: Bool) {
+        messageQueue.async { [weak self] in
+            self?.stealthMode = enabled
         }
     }
 }
