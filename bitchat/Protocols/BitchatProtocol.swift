@@ -479,6 +479,7 @@ protocol BitchatDelegate: AnyObject {
     // Low-level events for better separation of concerns
     func didReceiveNoisePayload(from peerID: String, type: NoisePayloadType, payload: Data, timestamp: Date)
     func didReceivePublicMessage(from peerID: String, nickname: String, content: String, timestamp: Date)
+    func didReceiveChannelPayload(from peerID: String, payload: Data, timestamp: Date)
 }
 
 // Provide default implementation to make it effectively optional
@@ -496,6 +497,9 @@ extension BitchatDelegate {
     }
 
     func didReceivePublicMessage(from peerID: String, nickname: String, content: String, timestamp: Date) {
+        // Default empty implementation
+    }
+    func didReceiveChannelPayload(from peerID: String, payload: Data, timestamp: Date) {
         // Default empty implementation
     }
 }

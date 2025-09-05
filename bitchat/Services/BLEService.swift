@@ -1791,16 +1791,9 @@ final class BLEService: NSObject {
         for (_, derived) in joined {
             do {
                 if let plaintext = try ChannelCrypto.open(packet: env, candidate: derived, aad: aad) {
-                    // Decode as UTF-8; drop if not valid text
-                    guard let content = String(data: plaintext, encoding: .utf8) else { return }
                     let ts = Date(timeIntervalSince1970: Double(packet.timestamp) / 1000)
-                    let senderNickname: String = {
-                        if let info = peers[peerID] { return info.nickname }
-                        // Fallback nickname resolution via social identity
-                        return "anon" + String(peerID.prefix(4))
-                    }()
                     notifyUI { [weak self] in
-                        self?.delegate?.didReceivePublicMessage(from: peerID, nickname: senderNickname, content: content, timestamp: ts)
+                        self?.delegate?.didReceiveChannelPayload(from: peerID, payload: plaintext, timestamp: ts)
                     }
                     return
                 }

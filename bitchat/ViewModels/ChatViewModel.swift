@@ -4466,6 +4466,57 @@ class ChatViewModel: ObservableObject, BitchatDelegate {
         }
     }
 
+    // Channel-encrypted payloads (includes BitTransfer frames or text messages)
+    func didReceiveChannelPayload(from peerID: String, payload: Data, timestamp: Date) {
+        Task { @MainActor in
+            if let m = BitTransferManifest.decode(payload) {
+                handleIncomingManifest(m, from: peerID, at: timestamp)
+                return
+            }
+            if let c = BitTransferChunk.decode(payload) {
+                handleIncomingChunk(c, from: peerID, at: timestamp)
+                return
+            }
+            if let a = BitTransferAck.decode(payload) {
+                handleIncomingAck(a, from: peerID, at: timestamp)
+                return
+            }
+            if let x = BitTransferCancel.decode(payload) {
+                handleIncomingCancel(x, from: peerID, at: timestamp)
+                return
+            }
+            if let text = String(data: payload, encoding: .utf8) {
+                let msg = BitchatMessage(
+                    id: UUID().uuidString,
+                    sender: resolveNickname(for: peerID),
+                    content: text.trimmingCharacters(in: .whitespacesAndNewlines),
+                    timestamp: timestamp,
+                    isRelay: false,
+                    originalSender: nil,
+                    isPrivate: false,
+                    recipientNickname: nil,
+                    senderPeerID: peerID,
+                    mentions: nil
+                )
+                handlePublicMessage(msg)
+            }
+        }
+    }
+
+    // MARK: - BitTransfer handlers (stubs; completed in ft-ios-impl)
+    private func handleIncomingManifest(_ m: BitTransferManifest, from peerID: String, at ts: Date) {
+        // TODO(ft-ios-impl)
+    }
+    private func handleIncomingChunk(_ c: BitTransferChunk, from peerID: String, at ts: Date) {
+        // TODO(ft-ios-impl)
+    }
+    private func handleIncomingAck(_ a: BitTransferAck, from peerID: String, at ts: Date) {
+        // TODO(ft-ios-impl)
+    }
+    private func handleIncomingCancel(_ x: BitTransferCancel, from peerID: String, at ts: Date) {
+        // TODO(ft-ios-impl)
+    }
+
     func didReceivePublicMessage(from peerID: String, nickname: String, content: String, timestamp: Date) {
         Task { @MainActor in
             let normalized = content.trimmingCharacters(in: .whitespacesAndNewlines)
