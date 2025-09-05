@@ -2290,6 +2290,30 @@ extension BLEService: Transport {
         }
     }
 
+    func sendChannelPayload(_ payload: Data, channel: ChannelCrypto.Derived) {
+        let aad = Data(hexString: myPeerID) ?? Data()
+        do {
+            let sealed = try ChannelCrypto.seal(message: payload, channelKey: channel, aad: aad)
+            guard let env = sealed.encode() else { return }
+            let packet = BitchatPacket(
+                type: MessageType.channelEncrypted.rawValue,
+                senderID: Data(hexString: myPeerID) ?? Data(),
+                recipientID: nil,
+                timestamp: UInt64(Date().timeIntervalSince1970 * 1000),
+                payload: env,
+                signature: nil,
+                ttl: messageTTL
+            )
+            if DispatchQueue.getSpecific(key: messageQueueKey) != nil {
+                broadcastPacket(packet)
+            } else {
+                messageQueue.async { [weak self] in self?.broadcastPacket(packet) }
+            }
+        } catch {
+            SecureLogger.log("❌ Failed to send channel payload: \(error)", category: SecureLogger.security, level: .error)
+        }
+    }
+
     func setStealthMode(_ enabled: Bool) {
         messageQueue.async { [weak self] in
             self?.stealthMode = enabled

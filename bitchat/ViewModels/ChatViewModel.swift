@@ -4505,16 +4505,26 @@ class ChatViewModel: ObservableObject, BitchatDelegate {
 
     // MARK: - BitTransfer handlers (stubs; completed in ft-ios-impl)
     private func handleIncomingManifest(_ m: BitTransferManifest, from peerID: String, at ts: Date) {
-        // TODO(ft-ios-impl)
+        BitTransferService.shared.handleManifest(m)
+        addPublicSystemMessage("incoming file: \(m.fileName) (\(m.fileSize) bytes)")
     }
     private func handleIncomingChunk(_ c: BitTransferChunk, from peerID: String, at ts: Date) {
-        // TODO(ft-ios-impl)
+        if let ack = BitTransferService.shared.handleChunk(c) {
+            if let chKey = PrivateChannelManager.shared.keyForActive(), let encoded = ack.encode() {
+                meshService.sendChannelPayload(encoded, channel: chKey)
+            }
+            if let data = BitTransferService.shared.assembleIfComplete(c.fileID),
+               let m = BitTransferService.shared.manifest(for: c.fileID) {
+                addPublicSystemMessage("received file: \(m.fileName)")
+                // TODO: publish to UI as attachment
+            }
+        }
     }
     private func handleIncomingAck(_ a: BitTransferAck, from peerID: String, at ts: Date) {
-        // TODO(ft-ios-impl)
+        BitTransferService.shared.handleAck(a)
     }
     private func handleIncomingCancel(_ x: BitTransferCancel, from peerID: String, at ts: Date) {
-        // TODO(ft-ios-impl)
+        addPublicSystemMessage("transfer cancelled")
     }
 
     func didReceivePublicMessage(from peerID: String, nickname: String, content: String, timestamp: Date) {

@@ -867,6 +867,18 @@ struct ContentView: View {
             .padding(.trailing, 12)
             .accessibilityLabel("Send message")
             .accessibilityHint(messageText.isEmpty ? "Enter a message to send" : "Double tap to send")
+            #if os(iOS)
+            Button(action: {
+                // Simple picker via UIDocumentPicker in UIKit hosting; placeholder for now
+                viewModel.addPublicSystemMessage("file picker not wired in preview build")
+            }) {
+                Image(systemName: "paperclip")
+                    .font(.system(size: 18))
+                    .foregroundColor(textColor)
+            }
+            .buttonStyle(.plain)
+            .padding(.trailing, 8)
+            #endif
             }
             .padding(.vertical, 8)
             .background(backgroundColor.opacity(0.95))
