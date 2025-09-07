@@ -1,3 +1,41 @@
+## CSFloat Flipper (Node + TypeScript)
+
+Automated CSFloat flipping bot that:
+- Scrapes recent listings
+- Pulls reference prices from Steam or CSGOBACKPACK
+- Evaluates ROI after CSFloat fees
+- Attempts purchases via headless browser with provided cookies
+- Persists trades and seen listings in SQLite
+
+### Quickstart
+
+1) Install deps
+```bash
+npm i
+```
+
+2) Configure environment
+```bash
+cp .env.example .env
+# Edit .env, set WHITELIST_ITEMS/BLACKLIST_ITEMS to control scope
+# Optionally set CSFLOAT_COOKIES to an authenticated Cookie header for csfloat.com
+```
+
+3) Run trading loop
+```bash
+npm run start -- trade
+```
+
+### Notes
+- Purchases use headless browser automation.
+- Set `PRICE_SOURCE` to `steam` or `csgobackpack` in `.env`.
+- SQLite DB stored at `/workspace/data/bot.sqlite` by default.
+
+### Environment
+- `MIN_ROI_PCT`: minimum ROI percent after fees
+- `CSFLOAT_FEE_PCT`: fee percent deducted from sale
+- `CSFLOAT_COOKIES`: cookie header string for csfloat.com authenticated session
+
 <img width="256" height="256" alt="icon_128x128@2x" src="https://github.com/user-attachments/assets/90133f83-b4f6-41c6-aab9-25d0859d2a47" />
 
 ## bitchat
