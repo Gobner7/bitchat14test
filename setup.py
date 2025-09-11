@@ -22,7 +22,7 @@ else:
 setup(
     name="apex-decompiler",
     version="1.0.0",
-    description="Superior Luau Bytecode Decompiler - Better than Oracle, Medal & Konstant",
+    description="Superior Lua 5.1 Bytecode Decompiler for Roblox Exploits - Better than Oracle, Medal & Konstant",
     long_description=long_description,
     long_description_content_type="text/markdown",
     author="Apex Development Team",
@@ -63,7 +63,7 @@ setup(
     
     python_requires=">=3.8",
     
-    keywords="luau, bytecode, decompiler, reverse-engineering, roblox, anti-obfuscation",
+    keywords="lua, lua51, bytecode, decompiler, reverse-engineering, roblox, exploits, anti-obfuscation",
     
     project_urls={
         "Bug Reports": "https://github.com/apex-dev/apex-decompiler/issues",

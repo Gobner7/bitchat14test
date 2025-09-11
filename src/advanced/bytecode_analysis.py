@@ -98,7 +98,7 @@ class AdvancedBytecodeAnalyzer:
         for i, instr in enumerate(instructions):
             # Jump targets are leaders
             if hasattr(instr, 'opcode'):
-                if 'JUMP' in instr.opcode.name:
+                if instr.opcode.name == 'JMP':
                     if hasattr(instr, 'd'):
                         target = i + instr.d + 1
                         if 0 <= target < len(instructions):
@@ -331,7 +331,7 @@ class AdvancedBytecodeAnalyzer:
             for i, instr in enumerate(block.instructions):
                 if hasattr(instr, 'opcode') and hasattr(instr, 'a'):
                     # Most instructions define register A
-                    if instr.opcode.name not in ['JUMP', 'JUMPBACK', 'RETURN']:
+                    if instr.opcode.name not in ['JMP', 'RETURN']:
                         data_flow_info.definitions[instr.a].add(block.start_pc + i)
                     
                     # Check for register uses
@@ -395,7 +395,7 @@ class AdvancedBytecodeAnalyzer:
         
         for instr in function.instructions:
             if hasattr(instr, 'opcode'):
-                if 'JUMP' in instr.opcode.name:
+                if instr.opcode.name == 'JMP':
                     jump_instructions += 1
                 elif instr.opcode.name in ['LOADK', 'LOADN']:
                     constant_loads += 1
@@ -479,7 +479,7 @@ class AdvancedBytecodeAnalyzer:
         # Detect opaque predicates
         for block in self.basic_blocks.values():
             for instr in block.instructions:
-                if hasattr(instr, 'opcode') and 'JUMPIF' in instr.opcode.name:
+                if hasattr(instr, 'opcode') and instr.opcode.name in ['EQ', 'LT', 'LE']:
                     # Check for constant comparisons (potential opaque predicates)
                     if hasattr(instr, 'b') and hasattr(instr, 'c'):
                         patterns['opaque_predicates'].append({

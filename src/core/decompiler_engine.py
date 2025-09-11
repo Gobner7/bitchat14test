@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Apex Decompiler - Next Generation Luau Bytecode Decompiler
+Apex Decompiler - Next Generation Lua 5.1 Bytecode Decompiler
 Superior to Oracle, Medal, and Konstant combined
 
-Core decompilation engine with advanced pattern recognition and anti-obfuscation
+Core decompilation engine for Roblox exploits with advanced pattern recognition and anti-obfuscation
 """
 
 import struct
@@ -17,81 +17,46 @@ import hashlib
 from collections import defaultdict, deque
 
 class OpCode(Enum):
-    """Luau bytecode opcodes with extended support"""
-    # Core opcodes
-    LOADNIL = 0
-    LOADB = 1
-    LOADN = 2
-    LOADK = 3
-    MOVE = 4
+    """Lua 5.1 bytecode opcodes for Roblox exploits"""
+    # Standard Lua 5.1 opcodes
+    MOVE = 0
+    LOADK = 1
+    LOADBOOL = 2
+    LOADNIL = 3
+    GETUPVAL = 4
     GETGLOBAL = 5
-    SETGLOBAL = 6
-    GETUPVAL = 7
+    GETTABLE = 6
+    SETGLOBAL = 7
     SETUPVAL = 8
-    CLOSEUPVALS = 9
-    GETIMPORT = 10
-    GETTABLE = 11
-    SETTABLE = 12
-    GETTABLEKS = 13
-    SETTABLEKS = 14
-    GETTABLEN = 15
-    SETTABLEN = 16
-    NEWCLOSURE = 17
-    NAMECALL = 18
-    CALL = 19
-    RETURN = 20
-    JUMP = 21
-    JUMPBACK = 22
-    JUMPIF = 23
-    JUMPIFNOT = 24
-    JUMPIFEQ = 25
-    JUMPIFLE = 26
-    JUMPIFLT = 27
-    JUMPIFNOTEQ = 28
-    JUMPIFNOTLE = 29
-    JUMPIFNOTLT = 30
-    ADD = 31
-    SUB = 32
-    MUL = 33
-    DIV = 34
-    MOD = 35
-    POW = 36
-    ADDK = 37
-    SUBK = 38
-    MULK = 39
-    DIVK = 40
-    MODK = 41
-    POWK = 42
-    AND = 43
-    OR = 44
-    ANDK = 45
-    ORK = 46
-    CONCAT = 47
-    NOT = 48
-    MINUS = 49
-    LENGTH = 50
-    NEWTABLE = 51
-    DUPTABLE = 52
-    SETLIST = 53
-    FORNPREP = 54
-    FORNLOOP = 55
-    FORGLOOP = 56
-    FORGPREP_INEXT = 57
-    FASTCALL = 58
-    COVERAGE = 59
-    CAPTURE = 60
-    SUBRK = 61
-    DIVRK = 62
-    FASTCALL1 = 63
-    FASTCALL2 = 64
-    FASTCALL2K = 65
-    FORGPREP = 66
-    JUMPXEQKNIL = 67
-    JUMPXEQKB = 68
-    JUMPXEQKN = 69
-    JUMPXEQKS = 70
-    IDIV = 71
-    IDIVK = 72
+    SETTABLE = 9
+    NEWTABLE = 10
+    SELF = 11
+    ADD = 12
+    SUB = 13
+    MUL = 14
+    DIV = 15
+    MOD = 16
+    POW = 17
+    UNM = 18
+    NOT = 19
+    LEN = 20
+    CONCAT = 21
+    JMP = 22
+    EQ = 23
+    LT = 24
+    LE = 25
+    TEST = 26
+    TESTSET = 27
+    CALL = 28
+    TAILCALL = 29
+    RETURN = 30
+    FORLOOP = 31
+    FORPREP = 32
+    TFORLOOP = 33
+    SETLIST = 34
+    CLOSE = 35
+    CLOSURE = 36
+    VARARG = 37
 
 @dataclass
 class Instruction:
@@ -174,10 +139,12 @@ class VariableRecovery:
             
     def infer_type(self, reg: int, instruction: Instruction) -> str:
         """Infer variable types from usage patterns"""
-        if instruction.opcode == OpCode.LOADN:
-            return "number"
-        elif instruction.opcode == OpCode.LOADK:
-            return "string"
+        if instruction.opcode == OpCode.LOADK:
+            return "string"  # Could be number too, but we'll assume string
+        elif instruction.opcode == OpCode.LOADBOOL:
+            return "boolean"
+        elif instruction.opcode == OpCode.LOADNIL:
+            return "nil"
         elif instruction.opcode == OpCode.NEWTABLE:
             return "table"
         else:
@@ -234,9 +201,9 @@ class AntiObfuscation:
         suspicious_jumps = []
         
         for i, instr in enumerate(instructions):
-            if instr.opcode in [OpCode.JUMP, OpCode.JUMPBACK]:
+            if instr.opcode == OpCode.JMP:
                 # Detect suspicious jump patterns
-                target = i + instr.d + 1
+                target = i + instr.aux + 1  # sBx field
                 if target < 0 or target >= len(instructions):
                     suspicious_jumps.append(i)
                     
@@ -276,23 +243,40 @@ class ApexDecompiler:
             return f"-- Decompilation failed: {str(e)}\n-- This may be due to advanced obfuscation or corrupted bytecode"
     
     def _parse_bytecode(self, bytecode: bytes) -> Function:
-        """Parse Luau bytecode with enhanced error handling"""
-        if len(bytecode) < 4:
+        """Parse Lua 5.1 bytecode with enhanced error handling"""
+        if len(bytecode) < 12:
             raise ValueError("Invalid bytecode: too short")
             
-        # Check for Luau bytecode signature
+        # Check for Lua bytecode signature
         if bytecode[:4] != b'\x1bLua':
-            raise ValueError("Invalid Luau bytecode signature")
+            raise ValueError("Invalid Lua bytecode signature")
             
         offset = 4
         
         # Parse version info
         version = bytecode[offset]
-        if version != 0x51:  # Luau version
-            raise ValueError(f"Unsupported Luau version: {version}")
+        if version != 0x51:  # Lua 5.1 version
+            raise ValueError(f"Unsupported Lua version: {version:02x} (expected 0x51 for Lua 5.1)")
         offset += 1
         
-        # Skip format version
+        # Parse format version
+        format_version = bytecode[offset]
+        offset += 1
+        
+        # Parse endianness
+        endian = bytecode[offset]
+        offset += 1
+        
+        # Parse size info
+        int_size = bytecode[offset]
+        offset += 1
+        size_t_size = bytecode[offset] 
+        offset += 1
+        instruction_size = bytecode[offset]
+        offset += 1
+        lua_number_size = bytecode[offset]
+        offset += 1
+        integral_flag = bytecode[offset]
         offset += 1
         
         # Parse main function
@@ -300,20 +284,38 @@ class ApexDecompiler:
         return main_function
     
     def _parse_function(self, bytecode: bytes, offset: int) -> Tuple[Function, int]:
-        """Parse a single function from bytecode"""
+        """Parse a single Lua 5.1 function from bytecode"""
         start_offset = offset
         
+        # Parse source name (string)
+        source_len = struct.unpack('<I', bytecode[offset:offset+4])[0]
+        offset += 4
+        
+        if source_len > 0:
+            source_name = bytecode[offset:offset+source_len-1].decode('utf-8', errors='replace')
+            offset += source_len
+        else:
+            source_name = "<unknown>"
+        
+        # Line defined
+        line_defined = struct.unpack('<I', bytecode[offset:offset+4])[0]
+        offset += 4
+        
+        # Last line defined  
+        last_line_defined = struct.unpack('<I', bytecode[offset:offset+4])[0]
+        offset += 4
+        
         # Read function header
-        max_stack_size = bytecode[offset]
+        num_upvals = bytecode[offset]
         offset += 1
         
         num_params = bytecode[offset]
         offset += 1
         
-        num_upvals = bytecode[offset]
+        is_vararg = bytecode[offset]
         offset += 1
         
-        is_vararg = bool(bytecode[offset])
+        max_stack_size = bytecode[offset]
         offset += 1
         
         # Parse instructions
@@ -325,21 +327,33 @@ class ApexDecompiler:
             instr_data = bytecode[offset:offset+4]
             raw_instr = struct.unpack('<I', instr_data)[0]
             
-            # Decode instruction
-            opcode_num = raw_instr & 0xFF
-            a = (raw_instr >> 8) & 0xFF
-            b = (raw_instr >> 16) & 0xFF
-            c = (raw_instr >> 24) & 0xFF
+            # Decode Lua 5.1 instruction format
+            opcode_num = raw_instr & 0x3F  # 6 bits
+            a = (raw_instr >> 6) & 0xFF   # 8 bits
+            
+            # Determine instruction format
+            if opcode_num <= 37:  # Valid Lua 5.1 opcodes
+                # Most instructions use B and C fields
+                b = (raw_instr >> 23) & 0x1FF  # 9 bits
+                c = (raw_instr >> 14) & 0x1FF  # 9 bits
+                
+                # Some instructions use Bx field instead
+                bx = (raw_instr >> 14) & 0x3FFFF  # 18 bits
+                
+                # Some instructions use sBx field (signed)
+                sbx = bx - 131071 if bx > 131071 else bx
+            else:
+                b = c = bx = sbx = 0
             
             try:
                 opcode = OpCode(opcode_num)
             except ValueError:
-                opcode = OpCode.LOADNIL  # Default for unknown opcodes
+                opcode = OpCode.MOVE  # Default for unknown opcodes
                 
             instruction = Instruction(
                 opcode=opcode,
-                a=a, b=b, c=c, d=0,
-                aux=0,
+                a=a, b=b, c=c, d=bx,  # Use d field for Bx
+                aux=sbx,              # Use aux field for sBx
                 line=i,
                 offset=offset,
                 raw_data=instr_data
@@ -362,16 +376,19 @@ class ApexDecompiler:
             elif const_type == 1:  # boolean
                 constants.append(bool(bytecode[offset]))
                 offset += 1
-            elif const_type == 2:  # number
+            elif const_type == 3:  # number
                 num_val = struct.unpack('<d', bytecode[offset:offset+8])[0]
                 constants.append(num_val)
                 offset += 8
-            elif const_type == 3:  # string
+            elif const_type == 4:  # string
                 str_len = struct.unpack('<I', bytecode[offset:offset+4])[0]
                 offset += 4
-                str_val = bytecode[offset:offset+str_len].decode('utf-8', errors='replace')
+                if str_len > 0:
+                    str_val = bytecode[offset:offset+str_len-1].decode('utf-8', errors='replace')
+                    offset += str_len
+                else:
+                    str_val = ""
                 constants.append(str_val)
-                offset += str_len
             else:
                 constants.append(f"<unknown_type_{const_type}>")
         
@@ -384,6 +401,42 @@ class ApexDecompiler:
             proto, offset = self._parse_function(bytecode, offset)
             protos.append(proto)
         
+        # Parse debug info (line info)
+        num_lines = struct.unpack('<I', bytecode[offset:offset+4])[0]
+        offset += 4
+        
+        # Skip line info for now
+        offset += num_lines * 4
+        
+        # Parse local variables
+        num_locals = struct.unpack('<I', bytecode[offset:offset+4])[0]
+        offset += 4
+        
+        local_names = []
+        for _ in range(num_locals):
+            # Skip local variable info for now
+            name_len = struct.unpack('<I', bytecode[offset:offset+4])[0]
+            offset += 4
+            if name_len > 0:
+                name = bytecode[offset:offset+name_len-1].decode('utf-8', errors='replace')
+                offset += name_len
+                local_names.append((name, 0, 0))
+            else:
+                offset += 8  # Skip start and end PC
+        
+        # Parse upvalue names
+        num_upvalue_names = struct.unpack('<I', bytecode[offset:offset+4])[0]
+        offset += 4
+        
+        upvalue_names = []
+        for _ in range(num_upvalue_names):
+            name_len = struct.unpack('<I', bytecode[offset:offset+4])[0]
+            offset += 4
+            if name_len > 0:
+                name = bytecode[offset:offset+name_len-1].decode('utf-8', errors='replace')
+                offset += name_len
+                upvalue_names.append(name)
+        
         # Create function object
         function = Function(
             max_stack_size=max_stack_size,
@@ -394,11 +447,11 @@ class ApexDecompiler:
             constants=constants,
             protos=protos,
             debug_info={},
-            source_name="<unknown>",
-            line_defined=0,
-            last_line_defined=0,
-            upvalue_names=[],
-            local_names=[]
+            source_name=source_name,
+            line_defined=line_defined,
+            last_line_defined=last_line_defined,
+            upvalue_names=upvalue_names,
+            local_names=local_names
         )
         
         return function, offset
@@ -412,7 +465,10 @@ class ApexDecompiler:
             function.constants[idx] = new_str
             
         # Detect control flow obfuscation
-        suspicious_jumps = AntiObfuscation.detect_control_flow_obfuscation(function.instructions)
+        try:
+            suspicious_jumps = AntiObfuscation.detect_control_flow_obfuscation(function.instructions)
+        except:
+            suspicious_jumps = []
         
         self.deobfuscation_stats = {
             'deobfuscated_strings': len(deobfuscated_strings),
@@ -425,13 +481,13 @@ class ApexDecompiler:
             self.cfg.add_node(i, instr)
             
             # Add edges based on instruction type
-            if instr.opcode == OpCode.JUMP:
-                target = i + instr.d + 1
+            if instr.opcode == OpCode.JMP:
+                target = i + instr.aux + 1  # sBx field
                 self.cfg.add_edge(i, target)
-            elif instr.opcode == OpCode.JUMPIF:
+            elif instr.opcode in [OpCode.EQ, OpCode.LT, OpCode.LE]:
                 # Conditional jump - two edges
                 self.cfg.add_edge(i, i + 1, "false")
-                self.cfg.add_edge(i, i + instr.d + 1, "true")
+                self.cfg.add_edge(i, i + 2, "true")  # Skip next instruction
     
     def _recover_variables(self, function: Function):
         """Perform advanced variable recovery"""
@@ -439,7 +495,7 @@ class ApexDecompiler:
             context = self._analyze_instruction_context(instr, function)
             
             # Recover variable names
-            if instr.opcode in [OpCode.MOVE, OpCode.LOADK, OpCode.LOADN]:
+            if instr.opcode in [OpCode.MOVE, OpCode.LOADK, OpCode.LOADBOOL, OpCode.LOADNIL]:
                 var_name = self.variable_recovery.infer_variable_name(instr.a, context)
                 var_type = self.variable_recovery.infer_type(instr.a, instr)
                 
@@ -454,7 +510,7 @@ class ApexDecompiler:
             context['table_access'] = True
         elif instr.opcode == OpCode.CALL:
             context['function_call'] = True
-        elif instr.opcode in [OpCode.FORNPREP, OpCode.FORNLOOP]:
+        elif instr.opcode in [OpCode.FORPREP, OpCode.FORLOOP]:
             context['loop_var'] = True
             
         return context
@@ -504,47 +560,127 @@ class ApexDecompiler:
         return "\n".join(lines)
     
     def _instruction_to_source(self, instr: Instruction, function: Function, indent: int) -> str:
-        """Convert instruction to readable source code"""
+        """Convert Lua 5.1 instruction to readable source code"""
         try:
             if instr.opcode == OpCode.LOADK:
                 var_name = self.variable_recovery.variable_map.get(instr.a, f"var{instr.a}")
-                if instr.d < len(function.constants):
+                if instr.d < len(function.constants):  # Bx field contains constant index
                     const_val = function.constants[instr.d]
                     if isinstance(const_val, str):
                         return f'local {var_name} = "{const_val}"'
                     else:
                         return f"local {var_name} = {const_val}"
                         
-            elif instr.opcode == OpCode.LOADN:
+            elif instr.opcode == OpCode.LOADBOOL:
                 var_name = self.variable_recovery.variable_map.get(instr.a, f"var{instr.a}")
-                return f"local {var_name} = {instr.d}"
+                bool_val = "true" if instr.b else "false"
+                return f"local {var_name} = {bool_val}"
+                
+            elif instr.opcode == OpCode.LOADNIL:
+                var_names = []
+                for i in range(instr.a, instr.a + instr.b + 1):
+                    var_names.append(self.variable_recovery.variable_map.get(i, f"var{i}"))
+                return f"local {', '.join(var_names)} = nil"
                 
             elif instr.opcode == OpCode.MOVE:
                 dst = self.variable_recovery.variable_map.get(instr.a, f"var{instr.a}")
                 src = self.variable_recovery.variable_map.get(instr.b, f"var{instr.b}")
                 return f"local {dst} = {src}"
                 
+            elif instr.opcode == OpCode.GETGLOBAL:
+                var_name = self.variable_recovery.variable_map.get(instr.a, f"var{instr.a}")
+                if instr.d < len(function.constants):
+                    global_name = function.constants[instr.d]
+                    return f"local {var_name} = {global_name}"
+                return f"local {var_name} = _G[{instr.d}]"
+                
+            elif instr.opcode == OpCode.SETGLOBAL:
+                var_name = self.variable_recovery.variable_map.get(instr.a, f"var{instr.a}")
+                if instr.d < len(function.constants):
+                    global_name = function.constants[instr.d]
+                    return f"{global_name} = {var_name}"
+                return f"_G[{instr.d}] = {var_name}"
+                
             elif instr.opcode == OpCode.GETTABLE:
                 dst = self.variable_recovery.variable_map.get(instr.a, f"var{instr.a}")
                 table = self.variable_recovery.variable_map.get(instr.b, f"var{instr.b}")
-                key = self.variable_recovery.variable_map.get(instr.c, f"var{instr.c}")
-                return f"local {dst} = {table}[{key}]"
+                
+                # Check if C is a constant or register
+                if instr.c & 0x100:  # Constant
+                    key_idx = instr.c & 0xFF
+                    if key_idx < len(function.constants):
+                        key = function.constants[key_idx]
+                        if isinstance(key, str):
+                            return f"local {dst} = {table}.{key}"
+                        else:
+                            return f"local {dst} = {table}[{key}]"
+                else:  # Register
+                    key = self.variable_recovery.variable_map.get(instr.c, f"var{instr.c}")
+                    return f"local {dst} = {table}[{key}]"
+                
+            elif instr.opcode == OpCode.SETTABLE:
+                table = self.variable_recovery.variable_map.get(instr.a, f"var{instr.a}")
+                value = self.variable_recovery.variable_map.get(instr.c, f"var{instr.c}")
+                
+                # Check if B is a constant or register
+                if instr.b & 0x100:  # Constant
+                    key_idx = instr.b & 0xFF
+                    if key_idx < len(function.constants):
+                        key = function.constants[key_idx]
+                        if isinstance(key, str):
+                            return f"{table}.{key} = {value}"
+                        else:
+                            return f"{table}[{key}] = {value}"
+                else:  # Register
+                    key = self.variable_recovery.variable_map.get(instr.b, f"var{instr.b}")
+                    return f"{table}[{key}] = {value}"
+                
+            elif instr.opcode == OpCode.NEWTABLE:
+                var_name = self.variable_recovery.variable_map.get(instr.a, f"var{instr.a}")
+                return f"local {var_name} = {{}}"
                 
             elif instr.opcode == OpCode.CALL:
                 func = self.variable_recovery.variable_map.get(instr.a, f"var{instr.a}")
-                if instr.b == 1 and instr.c == 1:
+                if instr.b == 1:  # No arguments
                     return f"{func}()"
+                elif instr.b == 2:  # One argument
+                    arg = self.variable_recovery.variable_map.get(instr.a + 1, f"var{instr.a + 1}")
+                    return f"{func}({arg})"
                 else:
-                    return f"-- CALL {func} with {instr.b-1} args, {instr.c-1} returns"
+                    args = []
+                    for i in range(1, instr.b):
+                        args.append(self.variable_recovery.variable_map.get(instr.a + i, f"var{instr.a + i}"))
+                    return f"{func}({', '.join(args)})"
                     
             elif instr.opcode == OpCode.RETURN:
-                if instr.b == 1:
+                if instr.b == 1:  # No return values
                     return "return"
+                elif instr.b == 2:  # One return value
+                    ret_val = self.variable_recovery.variable_map.get(instr.a, f"var{instr.a}")
+                    return f"return {ret_val}"
                 else:
-                    return f"return -- {instr.b-1} values"
+                    ret_vals = []
+                    for i in range(instr.b - 1):
+                        ret_vals.append(self.variable_recovery.variable_map.get(instr.a + i, f"var{instr.a + i}"))
+                    return f"return {', '.join(ret_vals)}"
                     
+            elif instr.opcode == OpCode.JMP:
+                return f"-- JUMP to +{instr.aux}"  # sBx field
+                
+            elif instr.opcode == OpCode.ADD:
+                dst = self.variable_recovery.variable_map.get(instr.a, f"var{instr.a}")
+                left = self.variable_recovery.variable_map.get(instr.b, f"var{instr.b}")
+                right = self.variable_recovery.variable_map.get(instr.c, f"var{instr.c}")
+                return f"local {dst} = {left} + {right}"
+                
+            elif instr.opcode == OpCode.SUB:
+                dst = self.variable_recovery.variable_map.get(instr.a, f"var{instr.a}")
+                left = self.variable_recovery.variable_map.get(instr.b, f"var{instr.b}")
+                right = self.variable_recovery.variable_map.get(instr.c, f"var{instr.c}")
+                return f"local {dst} = {left} - {right}"
+                
             else:
-                return f"-- {instr.opcode.name} {instr.a} {instr.b} {instr.c} {instr.d}"
+                return f"-- {instr.opcode.name} R({instr.a}) R({instr.b}) R({instr.c})"
                 
         except Exception as e:
             return f"-- Error processing {instr.opcode.name}: {str(e)}"

@@ -1,6 +1,6 @@
 # Apex Decompiler v1.0.0
 
-**The Superior Luau Bytecode Decompiler - Better than Oracle, Medal & Konstant Combined**
+**The Superior Lua 5.1 Bytecode Decompiler - Better than Oracle, Medal & Konstant Combined**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
@@ -8,7 +8,7 @@
 
 ## 🚀 Why Apex is Superior
 
-Apex Decompiler represents the next generation of Luau bytecode decompilation technology. While other decompilers like Oracle, Medal, and Konstant have stagnated with basic functionality, Apex pushes the boundaries with cutting-edge features:
+Apex Decompiler represents the next generation of Lua 5.1 bytecode decompilation technology for Roblox exploits. While other decompilers like Oracle, Medal, and Konstant have stagnated with basic functionality, Apex pushes the boundaries with cutting-edge features:
 
 ### 🎯 **Advanced Pattern Recognition**
 - **Oracle**: Basic pattern matching, easily confused by obfuscation
@@ -44,7 +44,7 @@ Apex Decompiler represents the next generation of Luau bytecode decompilation te
 ## 🌟 Features
 
 ### Core Decompilation Engine
-- ✅ **Complete Luau Bytecode Support** - All opcodes including latest additions
+- ✅ **Complete Lua 5.1 Bytecode Support** - All opcodes for Roblox exploit compatibility
 - ✅ **Advanced Pattern Recognition** - ML-powered obfuscation detection
 - ✅ **Anti-Obfuscation Technology** - Neutralizes common protection methods
 - ✅ **Smart Variable Recovery** - Context-aware naming and type inference
